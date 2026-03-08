@@ -1,112 +1,184 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <title>PDF Viewer</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@5.5.0/build/pdf.min.js"></script>
 
 <style>
-body {
-  margin: 0;
-  background: #2b2b2b;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+
+:root {
+  --bg: #0f172a;
+  --panel: #111827;
+  --accent: #3b82f6;
+  --text: #e5e7eb;
+  --border: #1f2937;
 }
 
-canvas {
-  margin: 10px auto;
-  background: white;
-  box-shadow: 0 0 6px rgba(0,0,0,0.4);
+* {
+  box-sizing: border-box;
 }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* toolbar */
 
 .toolbar {
   position: sticky;
   top: 0;
-  background: #1e1e1e;
-  color: white;
-  width: 100%;
-  padding: 10px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
 }
 
-button {
-  margin: 0 5px;
+.toolbar button {
+  background: #1f2937;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
 }
+
+.toolbar button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* viewer */
+
+#viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 0;
+}
+
+canvas {
+  margin-bottom: 20px;
+  border-radius: 6px;
+  background: white;
+  box-shadow:
+    0 10px 25px rgba(0,0,0,0.5);
+}
+
+.page-info {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
 </style>
-
 </head>
+
 <body>
 
 <div class="toolbar">
-  <button onclick="prevPage()">Prev</button>
-  <span id="page-info"></span>
-  <button onclick="nextPage()">Next</button>
-  <button onclick="zoomIn()">Zoom +</button>
-  <button onclick="zoomOut()">Zoom -</button>
+<button onclick="prevPage()">◀</button>
+<button onclick="nextPage()">▶</button>
+
+<span class="page-info" id="page-info"></span>
+
+<div class="spacer"></div>
+
+<button onclick="zoomOut()">−</button>
+<button onclick="zoomIn()">+</button>
 </div>
 
-<canvas id="pdf-canvas"></canvas>
+<div id="viewer"></div>
 
 <script>
 
-const url = "83-pourcents_le-vrai-bilan.pdf";
+const params = new URLSearchParams(window.location.search);
+const url = params.get("file") || "83-pourcents_le-vrai-bilan.pdf";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdn.jsdelivr.net/npm/pdfjs-dist@5.5.0/build/pdf.worker.min.js";
 
 let pdfDoc = null;
 let pageNum = 1;
-let scale = 1.2;
-let canvas = document.getElementById('pdf-canvas');
-let ctx = canvas.getContext('2d');
+let scale = 1.4;
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const viewer = document.getElementById("viewer");
 
-pdfjsLib.getDocument(url).promise.then(function(pdf) {
+pdfjsLib.getDocument(url).promise.then(pdf => {
   pdfDoc = pdf;
-  renderPage();
+  renderAllPages();
 });
 
-function renderPage() {
-  pdfDoc.getPage(pageNum).then(function(page) {
+function renderAllPages() {
 
-    const viewport = page.getViewport({ scale: scale });
+  viewer.innerHTML = "";
 
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
 
-    const renderContext = {
-      canvasContext: ctx,
-      viewport: viewport
-    };
+    pdfDoc.getPage(i).then(page => {
 
-    page.render(renderContext);
+      const viewport = page.getViewport({ scale });
 
-    document.getElementById("page-info").textContent =
-      "Page " + pageNum + " / " + pdfDoc.numPages;
-  });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      viewer.appendChild(canvas);
+
+      page.render({
+        canvasContext: ctx,
+        viewport: viewport
+      });
+
+    });
+  }
+
+  updateInfo();
+}
+
+function updateInfo() {
+  document.getElementById("page-info").textContent =
+    `Page ${pageNum} / ${pdfDoc.numPages}`;
 }
 
 function prevPage() {
   if (pageNum <= 1) return;
   pageNum--;
-  renderPage();
+  scrollToPage();
 }
 
 function nextPage() {
   if (pageNum >= pdfDoc.numPages) return;
   pageNum++;
-  renderPage();
+  scrollToPage();
+}
+
+function scrollToPage() {
+  const canvas = viewer.children[pageNum - 1];
+  canvas.scrollIntoView({ behavior: "smooth" });
+  updateInfo();
 }
 
 function zoomIn() {
   scale += 0.2;
-  renderPage();
+  renderAllPages();
 }
 
 function zoomOut() {
   scale -= 0.2;
-  renderPage();
+  renderAllPages();
 }
 
 </script>
